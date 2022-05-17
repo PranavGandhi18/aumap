@@ -1,0 +1,93 @@
+
+DELIMITER && 
+drop procedure if exists find_route();
+create procedure find_route(start_id int,end_id int)
+declare find_or_not boolean;
+declare min_d float;
+declare min_c int;
+
+declare end_lat float;
+declare end_lon float;
+
+declare temp_lat float;
+declare temp_lon float;
+declare temp_is int;
+
+declare temp_dis float;
+
+begin
+	set @min_d:=1000000;
+	set  find_or_not:=true;
+	drop table if exists shortest_path
+	CREATE TEMPORARY TABLE shortest_path
+        SELECT * FROM coordinates where id=start_id;
+
+	drop table if exists near_coor
+	CREATE TEMPORARY TABLE near_coor;
+
+    set @end_lat = select lattitude from coordinates where id= end_id;
+    set @end_lon = select longitude from coordinates where id= end_id;
+    
+
+    SELECT near_para(start_id);
+
+    declare cur_fetch_coor CURSOR FOR select * from near_coor;
+	
+
+	WHILE find_or_not is true do
+       open cur_fetch_coor; 
+        checkLoop: LOOP
+			fetch cur_fetch_coor into rec_coor;
+            
+            set @temp_is = select id from coordinates where id = rec_coor;
+            set @temp_lat = select lattitude from coordinates where id = rec_coor;
+            set @temp_lon = select longitude from coordinates where id = rec_coor;
+
+
+            if exists( select * from locationpoint where id = temp_is) then
+
+                if(temp_is = end_id) then
+                    set @temp_dis = SELECT distance(temp_lat,temp_lon,end_lat,end_lon);
+                else
+                    continue
+                end if;
+            else
+                set @temp_dis = SELECT distance(temp_lat,temp_lon,end_lat,end_lon);
+                
+            if(temp_dis < min_d) then  
+                set min_d := temp_dis;
+                set min_c := temp_is;
+
+            if(min_c = end_id) then
+                set @find_or_not = False;
+            
+            close cur_fetch_coor;
+        end loop;
+        
+        SELECT near_para(start_id);
+
+        declare cur_fetch_coor CURSOR FOR select * from near_coor;
+	
+
+    END WHILE;
+        
+
+     
+end &&;
+
+
+delimiter //
+drop function if near_para(coor int);
+create function near_para(coor int) return void DETERMINISTIC
+BEGIN 
+
+delete from table near_coor;
+
+INSERT into near_coor  SELECT end FROM street WHERE street.start = coor AND NOT IN ( SELECT id FROM  shortest_path);
+
+INSERT into near_coor  SELECT start FROM street WHERE street.end = coor AND NOT IN ( SELECT id FROM  shortest_path);
+
+
+end;
+//
+
